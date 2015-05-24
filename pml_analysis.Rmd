@@ -1,0 +1,117 @@
+---
+title: "Practical Machine Learning Project"
+author: "George Pick"
+date: "May 23, 2015"
+output: html_document
+---
+
+## Summary
+
+This project attempts to build a model that predicts the manner in which some people exercised based on data collected by sensors during this excercise.
+Training data came from: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv.
+Test data came from: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv.
+The original data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+
+## Set up
+
+First load the required libraries and set the seed.
+
+```{r message=FALSE, warning=FALSE}
+library(caret)
+library(randomForest)
+set.seed(23456)
+```
+
+## Read the data
+
+Read both the training and the testing data sets without converting variables to factors and interpreting all non-numerical or empty values as NAs. These will be removed later on.
+
+```{r}
+training = read.csv("pml-training.csv", stringsAsFactors=FALSE, 
+                    na.strings=c("NA", "", "NaN", "#DIV/0!"))   
+testing = read.csv("pml-testing.csv", stringsAsFactors=FALSE, 
+                    na.strings=c("NA", "", "NaN", "#DIV/0!"))   
+```
+
+## Clean the data
+
+Remove all variables with more than 97% missing values.
+
+```{r}
+training2 = training[,colMeans(is.na(training)) < .97]
+testingFinal = testing[,colMeans(is.na(testing)) < .97]
+```
+
+The remaining variables have no missing values.
+
+```{r}
+sum(colSums(is.na(training2)))
+sum(colSums(is.na(testingFinal)))
+```
+
+Remove some less usefull variables in the first 7 columns of the datasets.
+
+```{r}
+training2 = training2[,7:ncol(training2)]
+testingFinal = testingFinal[,7:ncol(testingFinal)]
+```
+
+Convert classe variable to factor.
+
+```{r}
+training2$classe = as.factor(training2$classe)
+```
+
+## Prepare the data for training and testing
+
+Partition the training data for cross-validation purposes into a training set and a testing set. We cannot use the testing data we were given because it would become part of the training set.
+
+
+```{r}
+inTrain = createDataPartition(y=training2$classe, p=0.75, list=FALSE)
+training3 = training2[inTrain,]
+testing3 = training2[-inTrain,]
+```
+
+## Create the prediction model
+
+Use random forests to fit the training data. Random forests is one of the fastest algorithms for classification.
+
+```{r}
+fitRF <- randomForest(classe ~ ., data=training3)
+```
+
+Let's look at the resulting model.
+
+```{r}
+fitRF
+```
+
+Now we cross-validate the model on the testing data we set aside from the original training data.
+
+```{r}
+pred = predict(fitRF, testing3)
+```
+
+Now let's see how well we did on the validation data by looking at the confusion matrix.
+
+```{r}
+confmat = confusionMatrix(pred, testing3$classe)
+confmat
+```
+
+We expect the accuracy to be high and the out of sample error to be very small.
+Indeed, the accuracy is `r round(100*(confmat$overall[1]),2)`% and the out of sample error is `r round(100*(1 -  confmat$overall[1]),2)`%
+
+## Compute final results
+We are now ready to use our model to predict on the testing data.
+
+```{r}
+predFinal = predict(fitRF, testingFinal)
+```
+
+These are the results:
+
+```{r}
+predFinal
+```
